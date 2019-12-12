@@ -1,8 +1,7 @@
-#[macro_use] extern crate nickel;
+extern crate actix_web;
 
-use nickel::{Nickel, HttpRouter, Request};
-use nickel::status::StatusCode;
-use hyper::header::Location;
+use actix_web::{web, App, HttpResponse, HttpServer};
+use serde::Deserialize;
 use rusqlite::{Connection, Result, NO_PARAMS};
 use time::Timespec;
 use std::env;
@@ -12,6 +11,11 @@ struct Link {
     id: String,
     url: String,
     time_created: Timespec,
+}
+
+#[derive(Deserialize)]
+struct GetInfo {
+    id: String,
 }
 
 fn open_db() -> Result<(Connection)> {
@@ -27,7 +31,11 @@ fn open_db() -> Result<(Connection)> {
     println!("Using {}", filepath);
 
     let conn = Connection::open(filepath)?;
+    Ok(conn)
+}
 
+fn check_schema() -> Result<()> {
+    let conn = open_db()?;
     let create_table_res = conn.execute(
         "CREATE TABLE links (
                   id              TEXT PRIMARY KEY,
@@ -42,10 +50,10 @@ fn open_db() -> Result<(Connection)> {
         Err(_e) => println!("Table ready"),
     }
 
-    Ok(conn)
+    Ok(())
 }
 
-fn get_link(conn: &Connection, id: String) -> Result<String> {
+fn get_link(conn: &Connection, id: &String) -> Result<String> {
     conn.query_row(
         "SELECT * FROM links WHERE id = :id",
         &[id],
@@ -53,26 +61,21 @@ fn get_link(conn: &Connection, id: String) -> Result<String> {
     )
 }
 
+fn handle_get(info: web::Path<GetInfo>) -> HttpResponse {
+    // TODO: Don't open a connection each time.
+    let connection = open_db().unwrap();
+    match get_link(&connection, &info.id) {
+        Ok(link) => {
+            HttpResponse::PermanentRedirect().header("Location", link).finish()
+        },
+        Err(_e) => HttpResponse::NotFound().body("Link not found")
+    }
+}
+
 fn main() {
-    let mut server = Nickel::new();
-    server.get("/:id", middleware!( | req, mut res | {
-        // TODO: Don't open a connection each time.
-        let connection = open_db().unwrap();
-        let link_result = match req.param("id") {
-            Some(id) => {
-                match get_link(&connection, String::from(id)) {
-                    Ok(link) => {
-                        link
-                    },
-                    Err(_e) => String::from("not found")
-                }
-            },
-            None => String::from("not found")
-        };
-        if link_result != "not found" {
-            res.set(StatusCode::PermanentRedirect).set(Location(link_result));
-        }
-        "not found"
-    }));
-    server.listen("127.0.0.1:6767").unwrap();
+    check_schema().unwrap();
+    HttpServer::new(|| {
+        App::new()
+            .route("/{id}", web::get().to(handle_get))
+    }).bind("127.0.0.1:6767").unwrap().run().unwrap();
 }
