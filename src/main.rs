@@ -1,16 +1,18 @@
 extern crate actix_web;
+extern crate r2d2;
+extern crate r2d2_sqlite;
 
 use actix_web::{web, App, HttpResponse, HttpServer};
 use serde::Deserialize;
 use rusqlite::{Connection, Result, NO_PARAMS};
-use time::Timespec;
+use r2d2_sqlite::SqliteConnectionManager;
+use r2d2::{PooledConnection};
 use std::env;
 
 #[derive(Debug)]
 struct Link {
     id: String,
-    url: String,
-    time_created: Timespec,
+    url: String
 }
 
 #[derive(Deserialize)]
@@ -18,7 +20,7 @@ struct GetInfo {
     id: String,
 }
 
-fn open_db() -> Result<(Connection)> {
+fn open_db() -> r2d2::Pool<r2d2_sqlite::SqliteConnectionManager> {
     let filepath: String;
 
     match env::var("NNUS_DB") {
@@ -30,17 +32,15 @@ fn open_db() -> Result<(Connection)> {
 
     println!("Using {}", filepath);
 
-    let conn = Connection::open(filepath)?;
-    Ok(conn)
+    let manager = SqliteConnectionManager::file(filepath);
+    r2d2::Pool::new(manager).unwrap()
 }
 
-fn check_schema() -> Result<()> {
-    let conn = open_db()?;
+fn check_schema(conn: PooledConnection<r2d2_sqlite::SqliteConnectionManager>) -> Result<()> {
     let create_table_res = conn.execute(
         "CREATE TABLE links (
                   id              TEXT PRIMARY KEY,
-                  url            TEXT NOT NULL,
-                  time_created    TEXT NOT NULL
+                  url            TEXT NOT NULL
                   )",
         NO_PARAMS,
     );
@@ -61,10 +61,8 @@ fn get_link(conn: &Connection, id: &String) -> Result<String> {
     )
 }
 
-fn handle_get(info: web::Path<GetInfo>) -> HttpResponse {
-    // TODO: Don't open a connection each time.
-    let connection = open_db().unwrap();
-    match get_link(&connection, &info.id) {
+fn handle_get(info: web::Path<GetInfo>, data: web::Data<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>) -> HttpResponse {
+    match get_link(&data.get().unwrap(), &info.id) {
         Ok(link) => {
             HttpResponse::PermanentRedirect().header("Location", link).finish()
         },
@@ -72,10 +70,24 @@ fn handle_get(info: web::Path<GetInfo>) -> HttpResponse {
     }
 }
 
+fn handle_head(info: web::Path<GetInfo>, data: web::Data<r2d2::Pool<r2d2_sqlite::SqliteConnectionManager>>) -> HttpResponse {
+    match get_link(&data.get().unwrap(), &info.id) {
+        Ok(link) => {
+            HttpResponse::Ok().header("Location", link).finish()
+        },
+        Err(_e) => HttpResponse::NotFound().finish()
+    }
+}
+
+
 fn main() {
-    check_schema().unwrap();
-    HttpServer::new(|| {
-        App::new()
-            .route("/{id}", web::get().to(handle_get))
-    }).bind("127.0.0.1:6767").unwrap().run().unwrap();
+    let master_pool = open_db();
+    check_schema(master_pool.get().unwrap()).unwrap();
+    let bind_to = env::var("NNUS_BIND").unwrap_or(String::from("127.0.0.1:6767"));
+    println!("Binding to http://{}", bind_to);
+    HttpServer::new(move || {
+        App::new().data(master_pool.clone())
+        .route("/{id}", web::head().to(handle_head))
+        .route("/{id}", web::get().to(handle_get))
+    }).bind(bind_to).unwrap().run().unwrap();
 }
