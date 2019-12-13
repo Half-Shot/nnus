@@ -19,7 +19,7 @@ You can install using `cargo`
 
 (You will need [Rust](https://www.rust-lang.org/). You can install it using [RustUp](https://rustup.rs/))
 
-``cargo install --git https://github.com:Half-Shot/nnus.git#0.2.0``
+``cargo install --git https://github.com:Half-Shot/nnus.git#1.0.0``
 
 ## Features
 
