@@ -4,10 +4,17 @@ No Nonsense URL Shortnener written in Rust.
 
 ```sh
 cargo install --git https://github.com/Half-Shot/nnus.git#1.0.0
-mkdir ~/.nnus/
-cd ~/.nnus/
 nnus
 ```
+
+## Features
+
+- You can be redirected to a new URL by following a short URL (`GET`)
+- You can check where a URL will redirect you before going to it (`HEAD`)
+
+- Configuration in SQLite3
+- Lightweight process (`<50KB`)
+
 
 ## Installation
 
@@ -20,14 +27,6 @@ You can install using `cargo`
 (You will need [Rust](https://www.rust-lang.org/). You can install it using [RustUp](https://rustup.rs/))
 
 ``cargo install --git https://github.com:Half-Shot/nnus.git#1.0.0``
-
-## Features
-
-- You can be redirected to a new URL by following a short URL (`GET`)
-- You can check where a URL will redirect you before going to it (`HEAD`)
-
-- Configuration in SQLite3
-- Lightweight process (`<50KB`)
 
 ## Configuration
 
