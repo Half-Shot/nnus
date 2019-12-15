@@ -45,7 +45,7 @@ You can also query links using
 sqlite3 ~/.nnus/db.db3 "SELECT * FROM links"
 ```
 
-You should sent the bind address with the `NNUS_BIND` environment variable, by default this is `127.0.0.1:6767`. It is expected that you host this service behind a 
+You can set the bind address with the `NNUS_BIND` environment variable, by default this is `127.0.0.1:6767`. It is expected that you host this service behind a 
 reverse proxy like [NGINX](https://www.nginx.com/).
 
 You can set the database storage location with the `NNUS_DB` environment variable. By default this is `~/db.db3`.
